@@ -1,0 +1,4 @@
+欢迎来到Subtitle Editor!
+本工具支持以下功能：
+1. srt文件转换为csv文件
+2. 添加过角色名的csv文件转换成srt文件
