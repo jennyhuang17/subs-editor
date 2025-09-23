@@ -16,7 +16,7 @@ def adjust_time(time_obj, delta):
 
 def srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, end_time_adjust):
 
-    for episode in range(episode_start, episode_end):
+    for episode in range(episode_start, episode_end+1):
         n = f"{episode:02}"
         file_name = drama+n
 
@@ -73,8 +73,8 @@ def srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, 
 
 # 调整句长
 start_time_adjust = -0.3
-end_time_adjust = 0.4
-episode_start = 2
-episode_end = 25
-drama = "远徵_"
+end_time_adjust = 0.3
+episode_start = 8
+episode_end = 10
+drama = "光渊_"
 srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, end_time_adjust)

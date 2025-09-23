@@ -15,7 +15,7 @@ def extract_lines(input_file, search_strings, output_file):
         file.writelines(extracted_lines)
 
 # Example usage
-input_file = 'output-text/txt/皓嫣.txt'  # Replace with your input file name
-output_file = 'output-text/txt/皓嫣_乐嫣.txt'  # Replace with your desired output file name
-search_strings = ["【乐嫣", "【皓嫣"]  # Replace with your desired search string
+input_file = 'output-text/txt/光渊.txt'  # Replace with your input file name
+output_file = 'output-text/txt/裴溯.txt'  # Replace with your desired output file name
+search_strings = ["【裴溯", "裴溯相关", "裴溯】"]  # Replace with your desired search string
 extract_lines(input_file, search_strings, output_file)

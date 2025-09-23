@@ -27,7 +27,7 @@ def generate_txt(input_csv):
             # Append a customized divider if this and previous rows are consistent
             # Else, start a new line
             if same_group:
-                new_txt_output.append('，')
+                new_txt_output.append(' ')
             else:
                 new_txt_output.extend(['\n', changed_name])
             
@@ -62,7 +62,7 @@ def generate_srt(input_csv):
 
             # Handle continuous lines (same group)
             if same_group:
-                current_line.extend(["，", str(input_csv[row][2])])
+                current_line.extend([" ", str(input_csv[row][2])])
             else:
                 # Write the previous line to the output
                 start_time = first_line_time.split(" --> ")[0]
