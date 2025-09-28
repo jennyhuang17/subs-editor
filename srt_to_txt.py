@@ -22,7 +22,7 @@ def merge_srt_folder(folder, output_file):
 
     for srt_file in srt_files:
         # 从文件名中提取集数 A_01.srt -> 01
-        match = re.match(r'.*_(\d{2})\.srt$', srt_file)
+        match = re.match(r'.*(\d{2})\.srt$', srt_file)
         if not match:
             continue
         episode_num = match.group(1)

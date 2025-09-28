@@ -42,4 +42,4 @@ def rename_mp3_files(root_folder):
     print("✅ 重命名完成！")
 
 if __name__ == "__main__":
-    rename_mp3_files("裴溯")
+    rename_mp3_files("output-audio")

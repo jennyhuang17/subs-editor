@@ -20,7 +20,7 @@ def srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, 
         n = f"{episode:02}"
         file_name = drama+n
 
-        srt_dir = "output-text/srt/" + file_name[:-3]
+        srt_dir = "output-text/srt/" + file_name[:-2]
         audio_dir = "input-audio"
 
         audio_name = file_name
@@ -74,7 +74,7 @@ def srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, 
 # 调整句长
 start_time_adjust = -0.3
 end_time_adjust = 0.3
-episode_start = 8
-episode_end = 10
-drama = "光渊_"
+episode_start = 21
+episode_end = 22
+drama = "光渊"
 srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, end_time_adjust)
