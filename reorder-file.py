@@ -1,4 +1,5 @@
 import os
+import sys
 
 def rename_mp3_files(root_folder):
     # 遍历 A/01, A/02, ...
@@ -42,4 +43,4 @@ def rename_mp3_files(root_folder):
     print("✅ 重命名完成！")
 
 if __name__ == "__main__":
-    rename_mp3_files("output-audio")
+    rename_mp3_files(sys.argv[1])

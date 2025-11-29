@@ -2,6 +2,7 @@ import pysrt
 import subprocess
 import os
 import re
+import sys
 from datetime import datetime, timedelta
 
 def sanitize_filename(filename):
@@ -20,15 +21,16 @@ def srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, 
         n = f"{episode:02}"
         file_name = drama+n
 
-        srt_dir = "output-text/srt/" + file_name[:-2]
+        srt_dir = "output-srt/" + file_name[:-2]
         audio_dir = "input-audio"
+        output_dir = "output-audio"
 
         audio_name = file_name
         audio_format = "mp3"
 
         srt_file = os.path.join(srt_dir, f"{file_name}.srt")
         audio_file = os.path.join(audio_dir, f"{audio_name}.{audio_format}")
-        output_dir = os.path.join(f"output-audio", audio_name)
+        output_dir = os.path.join(output_dir, audio_name)
 
         if not os.path.exists(audio_file):
             continue
@@ -72,9 +74,12 @@ def srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, 
             print(f"Extracted: {output_path}")
 
 # 调整句长
-start_time_adjust = -0.3
-end_time_adjust = 0.3
-episode_start = 21
-episode_end = 22
-drama = "光渊"
-srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, end_time_adjust)
+start_time_adjust = -0.4
+end_time_adjust = 0.4
+episode_start = 35
+episode_end = 40
+drama = "水龙吟"
+try:
+    srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, end_time_adjust) 
+except:
+    pass

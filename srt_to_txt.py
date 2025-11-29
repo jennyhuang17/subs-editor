@@ -40,6 +40,6 @@ def merge_srt_folder(folder, output_file):
         f.write("\n".join(all_texts).strip())   # 去掉最后多余空行
 
 if __name__ == "__main__":
-    input_folder = "output-text/srt/光渊"
-    output_file = "output-text/txt/光渊.txt"
+    input_folder = "output-text/srt/袁慎"
+    output_file = "output-text/txt/袁慎.txt"
     merge_srt_folder(input_folder, output_file)

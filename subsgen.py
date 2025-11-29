@@ -106,7 +106,7 @@ def generate_srt(input_csv):
 
 def write_srt(file_name):
     # Open the csv file
-    srt_folder_path = os.path.join("output-text/srt/", file_name)
+    srt_folder_path = os.path.join("output-srt/", file_name)
     original_csv = pd.read_csv(f"input-csv/{file_name}.csv", header=None)
     csv_array = np.array(original_csv)
 
@@ -140,7 +140,7 @@ def write_txt(file_name):
         new_txt_output = generate_txt(episode_input_csv)
         txt_output.extend([str(episode[-2:]), "\n", new_txt_output, "\n\n"])
 
-    with open(os.path.join("output-text/txt", output_file_name), "w") as f_txt:
+    with open(os.path.join("output-txt/", output_file_name), "w") as f_txt:
         f_txt.write("".join(txt_output))
     print(f"已生成台词本：{file_name}.txt")
     
