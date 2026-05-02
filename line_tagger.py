@@ -1,208 +1,232 @@
-import re, sys
+"""
+根据已有台词本（txt）自动标记 CSV 中的角色列。
+
+支持两种 txt 格式：
+  - 纯台词模式：txt 里只有目标角色的台词，所有匹配行标记为 --role 值（默认 "q"）
+  - 混合模式：txt 里包含目标角色台词（普通行）和第三方角色台词（括号格式）
+              括号格式：（角色名：台词内容）
+              普通行标记为 --role，括号行标记为括号内的角色名
+
+用法：
+  python line_tagger.py <集数/文件前缀> [--role 角色名] [--n 窗口大小] [--min_score 最低分]
+
+示例：
+  # 纯台词模式（txt 只有目标角色）
+  python line_tagger.py 乐嫣01 --role 乐嫣
+
+  # 混合模式（txt 含第三方括号行）
+  python line_tagger.py 10 --role 1
+
+输入文件：<ep>.csv  +  <ep>.txt
+输出文件：<ep>_marked.csv
+"""
+
+import argparse
+import re
 import pandas as pd
 from collections import defaultdict
 
 
+# ── 文本归一化 ────────────────────────────────────────────────────────────────
+
 def normalize_text(s: str) -> str:
-    """归一化：去空白和标点，仅保留中英文数字"""
     if s is None:
         return ""
     s = str(s)
     s = re.sub(r"\s+", "", s)
-    s = re.sub(r"[^0-9A-Za-z\u4e00-\u9fff]+", "", s)
+    s = re.sub(r"[^0-9A-Za-z一-鿿]+", "", s)
     return s
 
 
 def should_ignore_line(line: str) -> bool:
-    """
-    忽略：
-    1) EPxx 开头行，如 EP04
-    2) 数字-数字 开头行，如 4-01、12-3
-    """
     line = line.strip()
     if not line:
         return True
-    if re.match(r"(?i)^EP\d+\b", line):
+    if re.match(r"(?i)^EP\d+\b", line):   # EPxx 集数行
         return True
-    if re.match(r"^\d+\-\d+\b", line):
+    if re.match(r"^\d+\-\d+\b", line):    # 4-01 编号行
         return True
     return False
 
 
-def load_txt_tokens(txt_path: str):
-    """按空格/换行拆 token"""
-    tokens = []
+# ── 解析括号格式第三方台词：（角色名：台词） ──────────────────────────────────
+
+def parse_parenthetical(line: str):
+    """返回 (role_name, content) 或 None"""
+    m = re.match(r"^[（(]\s*(.+?)\s*[）)]\s*$", line.strip())
+    if not m:
+        return None
+    inner = m.group(1)
+    if "：" in inner:
+        parts = inner.split("：", 1)
+    elif ":" in inner:
+        parts = inner.split(":", 1)
+    else:
+        return None
+    role, content = parts[0].strip(), parts[1].strip()
+    return (role, content) if role and content else None
+
+
+# ── 读取 txt，输出 token 列表（含标签）────────────────────────────────────────
+
+def load_txt_items(txt_path: str, target_label: str):
+    """
+    返回 [{"tok": <归一化文本>, "label": <角色标签>}, ...]
+    普通行 → target_label；括号行 → 括号内角色名
+    """
+    items = []
     with open(txt_path, "r", encoding="utf-8") as f:
         for raw in f:
             line = raw.strip()
             if should_ignore_line(line):
                 continue
-            parts = re.split(r"\s+", line)
-            for p in parts:
-                p_norm = normalize_text(p)
-                if p_norm:
-                    tokens.append(p_norm)
-    return tokens
+            mention = parse_parenthetical(line)
+            if mention:
+                role, content = mention
+                for p in re.split(r"\s+", content):
+                    tok = normalize_text(p)
+                    if tok:
+                        items.append({"tok": tok, "label": role})
+            else:
+                for p in re.split(r"\s+", line):
+                    tok = normalize_text(p)
+                    if tok:
+                        items.append({"tok": tok, "label": target_label})
+    return items
 
 
-def build_csv_units(df: pd.DataFrame, dialogue_col="台词"):
-    """
-    把每一行台词做归一化，并额外构建“2行拼接”“3行拼接”用于容忍
-    txt 一个 token 覆盖 csv 连续多行 的情况。
-    """
+# ── 构建 CSV 匹配单元（支持 1~max_concat 行拼接）────────────────────────────
+
+def build_csv_units(df: pd.DataFrame, dialogue_col="台词", max_concat=3):
     lines = df[dialogue_col].fillna("").astype(str).tolist()
     norm = [normalize_text(x) for x in lines]
     n = len(norm)
-
     units = []
-    # 1行
-    for i in range(n):
-        if norm[i]:
-            units.append((i, i, norm[i]))
-    # 2行拼接
-    for i in range(n - 1):
-        c = norm[i] + norm[i + 1]
-        if c:
-            units.append((i, i + 1, c))
-    # 3行拼接
-    for i in range(n - 2):
-        c = norm[i] + norm[i + 1] + norm[i + 2]
-        if c:
-            units.append((i, i + 2, c))
-
+    for k in range(1, max_concat + 1):
+        for i in range(n - k + 1):
+            combined = "".join(norm[i:i + k])
+            if combined:
+                units.append((i, i + k - 1, combined))
     return norm, units
 
 
 def index_units(units):
-    """
-    建倒排索引：text -> [(start,end), ...]
-    """
     inv = defaultdict(list)
     for s, e, t in units:
         inv[t].append((s, e))
     return inv
 
 
-def exists_near(inv, token, center_row, n):
-    """
-    token 是否在 center_row 的 ±n 行内出现（按 unit 的 start/end 判断）
-    """
+# ── 上下文打分 + 最优候选选择 ────────────────────────────────────────────────
+
+def exists_near(inv, token, center, n):
     if token not in inv:
         return False
-    lo = center_row - n
-    hi = center_row + n
-    for s, e in inv[token]:
-        if e >= lo and s <= hi:
-            return True
-    return False
+    lo, hi = center - n, center + n
+    return any(e >= lo and s <= hi for s, e in inv[token])
 
 
-def choose_best_candidate(cands, inv, tokens, t_idx, n, last_anchor):
-    """
-    在候选中选最优：
-    - 先做上下文打分：前1/2 token、后1/2 token 是否在 ±n 出现
-    - 再偏向时间顺序（start >= last_anchor）
-    """
-    best = None
-    best_score = -1
-    best_penalty = float("inf")
+def choose_best(cands, inv, tokens, t_idx, n, last_anchor):
+    prev = [tokens[t_idx - i] if t_idx - i >= 0 else None for i in (1, 2)]
+    nxt  = [tokens[t_idx + i] if t_idx + i < len(tokens) else None for i in (1, 2)]
+    context = [x for x in prev + nxt if x]
 
-    prev1 = tokens[t_idx - 1] if t_idx - 1 >= 0 else None
-    prev2 = tokens[t_idx - 2] if t_idx - 2 >= 0 else None
-    next1 = tokens[t_idx + 1] if t_idx + 1 < len(tokens) else None
-    next2 = tokens[t_idx + 2] if t_idx + 2 < len(tokens) else None
-
+    best, best_score, best_penalty = None, -1, float("inf")
     for s, e in cands:
-        center = (s + e) // 2
-        score = 0
-
-        if prev1 and exists_near(inv, prev1, center, n): score += 1
-        if prev2 and exists_near(inv, prev2, center, n): score += 1
-        if next1 and exists_near(inv, next1, center, n): score += 1
-        if next2 and exists_near(inv, next2, center, n): score += 1
-
-        # 顺序惩罚：越不倒退越好
+        center  = (s + e) // 2
+        score   = sum(1 for c in context if exists_near(inv, c, center, n))
         penalty = 0 if s >= last_anchor else (last_anchor - s + 1)
-
-        if (score > best_score) or (score == best_score and penalty < best_penalty):
-            best_score = score
-            best_penalty = penalty
-            best = (s, e)
-
+        if score > best_score or (score == best_score and penalty < best_penalty):
+            best, best_score, best_penalty = (s, e), score, penalty
     return best, best_score
 
 
-def mark_by_anchor_window(
-    csv_path: str,
-    txt_path: str,
-    out_path: str,
-    dialogue_col: str = "台词",
-    role_col: str = "角色",
-    n: int = 20,
-    min_context_score: int = 1,   # 至少命中1个上下文锚点才标记；可调成0更宽松
-):
+# ── 合并角色列（多标签时用 | 拼接）──────────────────────────────────────────
+
+def merge_role(old_val, new_label: str, target_label: str) -> str:
+    old = "" if pd.isna(old_val) else str(old_val).strip()
+    new = new_label.strip()
+    if not old:
+        return new
+    if new == target_label:
+        return old                   # 已有具体角色名，不被目标标签覆盖
+    if old == target_label:
+        return new                   # 具体角色名优先于目标标签
+    if old == new:
+        return old
+    parts = set(old.split("|"))
+    parts.add(new)
+    return "|".join(sorted(parts))
+
+
+# ── 主函数 ────────────────────────────────────────────────────────────────────
+
+def mark_by_anchor_window(csv_path, txt_path, out_path,
+                           target_label="q", dialogue_col="台词", role_col="角色",
+                           n=20, min_context_score=1, max_concat=3):
     df = pd.read_csv(csv_path, encoding="utf-8-sig")
-
-    # 确保角色列是字符串类型，避免 float <-> str 的 dtype 警告
-    df[role_col] = df[role_col].astype("string")
-    df[role_col] = df[role_col].fillna("")  # 保持空字符串
-
     if dialogue_col not in df.columns:
-        raise ValueError(f"CSV缺少列：{dialogue_col}，现有列：{list(df.columns)}")
+        raise ValueError(f"CSV 缺少列：{dialogue_col}")
     if role_col not in df.columns:
         df[role_col] = ""
+    df[role_col] = df[role_col].astype("string").fillna("")
 
-    tokens = load_txt_tokens(txt_path)
-    _, units = build_csv_units(df, dialogue_col=dialogue_col)
+    items  = load_txt_items(txt_path, target_label)
+    tokens = [it["tok"] for it in items]
+    _, units = build_csv_units(df, dialogue_col=dialogue_col, max_concat=max_concat)
     inv = index_units(units)
 
-    marked_rows = set()
-    last_anchor = -1
-    matched_tokens = 0
+    last_anchor   = -1
+    matched_items = 0
+    marked_rows   = 0
 
-    for i, tok in enumerate(tokens):
+    for i, it in enumerate(items):
+        tok, label = it["tok"], it["label"]
         cands = inv.get(tok, [])
         if not cands:
-            # 这块找不到，跳过
             continue
-
-        best, score = choose_best_candidate(cands, inv, tokens, i, n=n, last_anchor=last_anchor)
-        if best is None:
+        best, score = choose_best(cands, inv, tokens, i, n=n, last_anchor=last_anchor)
+        if best is None or score < min_context_score:
             continue
-
-        # 上下文校验不过就跳过（你要求“没有找到就跳过，查下一块”）
-        if score < min_context_score:
-            continue
-
         s, e = best
         for r in range(s, e + 1):
-            marked_rows.add(r)
-
+            if normalize_text(df.at[r, dialogue_col]):
+                df.at[r, role_col] = merge_role(df.at[r, role_col], label, target_label)
+                marked_rows += 1
         last_anchor = max(last_anchor, e)
-        matched_tokens += 1
-
-    for r in marked_rows:
-        df.at[r, role_col] = "q"
+        matched_items += 1
 
     df.to_csv(out_path, index=False, encoding="utf-8-sig")
-    print(f"输出文件: {out_path}")
-    print(f"txt token总数: {len(tokens)}")
-    print(f"成功匹配token数: {matched_tokens}")
-    print(f"被标记csv行数: {len(marked_rows)}")
+    print(f"输出: {out_path}")
+    print(f"txt token 总数: {len(items)}  |  匹配成功: {matched_items}  |  标记行数: {marked_rows}")
 
+
+# ── CLI ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    ep = sys.argv[1]
-    csv_path = f"{ep}.csv"
-    txt_path = f"{ep}.txt"
-    out_path = f"{ep}_marked.csv"
+    parser = argparse.ArgumentParser(
+        description="根据台词本 txt 自动标记 CSV 角色列",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例：
+  python line_tagger.py 乐嫣01 --role 乐嫣          # 纯台词模式
+  python line_tagger.py 10 --role 1                 # 混合模式（txt 含括号行）
+  python line_tagger.py 赴山海05 --role q --n 30    # 加大上下文窗口
+        """
+    )
+    parser.add_argument("ep", help="集数/文件前缀，读取 <ep>.csv 和 <ep>.txt")
+    parser.add_argument("--role",      default="q",  help="目标角色标签（默认 q）")
+    parser.add_argument("--n",         type=int, default=20,  help="上下文窗口大小（默认 20）")
+    parser.add_argument("--min_score", type=int, default=1,   help="最低上下文匹配分（默认 1，改 0 更宽松）")
+    parser.add_argument("--max_concat",type=int, default=3,   help="最多拼接几行做匹配（默认 3）")
+    args = parser.parse_args()
 
     mark_by_anchor_window(
-        csv_path=csv_path,
-        txt_path=txt_path,
-        out_path=out_path,
-        dialogue_col="台词",
-        role_col="角色",
-        n=20,
-        min_context_score=1,  # 如果还漏很多，可改成0
+        csv_path   = f"{args.ep}.csv",
+        txt_path   = f"{args.ep}.txt",
+        out_path   = f"{args.ep}_marked.csv",
+        target_label     = args.role,
+        n                = args.n,
+        min_context_score= args.min_score,
+        max_concat       = args.max_concat,
     )
