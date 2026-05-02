@@ -15,7 +15,10 @@ def extract_lines(input_file, pattern, output_file):
         file.writelines(extracted_lines)
 
 # 示例使用
-input_file = 'output-txt/山河枕.txt'
-output_file = 'output-txt/楚瑜.txt'
-pattern = r'【8?1】'
+input_file = 'output-txt/钢铁森林.txt'
+# output_file = 'output-txt/钢铁森林-女主.txt'
+# pattern = r'【[qwert]】'
+output_file = 'output-txt/钢铁森林-男主.txt'
+pattern = r'【[asdfg]】'
+print(f"✅已提取台词本：{output_file}")
 extract_lines(input_file, pattern, output_file)
