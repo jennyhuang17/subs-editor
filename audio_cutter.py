@@ -62,14 +62,15 @@ def srt_to_audio_segments(drama, episode_start, episode_end,
         print(f"已标记 artist='{artist_name}': {episode_output_dir}")
 
 
-# ── 配置区 ────────────────────────────────────────────────────────────────────
-drama            = "水龙吟"
-episode_start    = 35
-episode_end      = 40
-start_time_adjust = -0.4
-end_time_adjust   =  0.4
-artist_name      = "lnlychee"
-# ─────────────────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    # ── 配置区 ──────────────────────────────────────────────────────────────
+    drama             = "水龙吟"
+    episode_start     = 35
+    episode_end       = 40
+    start_time_adjust = -0.4
+    end_time_adjust   =  0.4
+    artist_name       = "lnlychee"
+    # ────────────────────────────────────────────────────────────────────────
 
-srt_to_audio_segments(drama, episode_start, episode_end,
-                       start_time_adjust, end_time_adjust, artist_name)
+    srt_to_audio_segments(drama, episode_start, episode_end,
+                           start_time_adjust, end_time_adjust, artist_name)
