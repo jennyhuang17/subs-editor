@@ -102,9 +102,9 @@ def generate_csv(directory, folder_name, ep_start, ep_end):
             all_rows.extend(read_srt(os.path.join(directory, filename), epno))
 
     if ep_start == ep_end:
-        output_csv = os.path.join(directory, f"台词本{ep_start:02d}.csv")
+        output_csv = os.path.join(directory, f"{folder_name}{ep_start:02d}.csv")
     else:
-        output_csv = os.path.join(directory, f"台词本{ep_start:02d}-{ep_end:02d}.csv")
+        output_csv = os.path.join(directory, f"{folder_name}{ep_start:02d}-{ep_end:02d}.csv")
 
     with open(output_csv, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=['编号', '时间戳', '台词', '角色', '集数'])
