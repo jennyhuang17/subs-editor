@@ -46,12 +46,15 @@ def header():
 
 def run_process():
     print("\n── 预处理字幕 ──\n")
-    folder    = ask("字幕文件夹：")
+    folder    = ask("字幕文件夹名（srt/ 下的子文件夹）：")
     ep_start  = ask("开始集数：", "1")
     ep_end    = ask("结束集数：", ep_start)
 
     from process import rename_files, convert_ass_files, generate_csv
-    folder      = folder.rstrip("/\\")
+    # 自动加 srt/ 前缀（如果用户没有手动加）
+    folder = folder.rstrip("/\\")
+    if not folder.startswith("srt/") and not folder.startswith("srt\\"):
+        folder = os.path.join("srt", folder)
     folder_name = os.path.basename(folder)
     ep_start, ep_end = int(ep_start), int(ep_end)
 
@@ -83,11 +86,12 @@ def run_line_tagger():
 def run_subs_generator():
     print("\n── 生成台词本 / 字幕 ──\n")
     file_name = ask("文件名（对应 input-csv/<文件名>.csv）：")
+    pattern   = ask("主要角色标注（如 qw，留空则跳过）：") or None
 
     import subsgen as sg
     print()
-    sg.write_srt(file_name)
-    sg.write_txt(file_name)
+    sg.write_srt(file_name, pattern)
+    sg.write_txt(file_name, pattern)
 
 
 def run_audio_cutter():
