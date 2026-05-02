@@ -3,7 +3,53 @@ import numpy as np
 import os
 import eyed3
 
-def generate_txt(input_csv):
+def is_split_main_character(character_name, pattern=None):
+    """Return True for names like 'nq' or 'nw' when pattern is 'qw'."""
+
+    character_name = str(character_name)
+
+    if not pattern:
+        return False
+
+    return (
+        len(character_name) == 2
+        and character_name.startswith("n")
+        and character_name[1] in set(str(pattern))
+    )
+
+
+def is_main_character(character_name, file_name, pattern=None):
+    """Return True when the row belongs to the main character(s)."""
+
+    character_name = str(character_name)
+
+    if pattern:
+        return character_name in set(str(pattern)) or is_split_main_character(character_name, pattern)
+
+    return character_name == str(file_name)
+
+
+def get_changed_name_for_txt(character_name, file_name, pattern=None):
+    """Return the speaker prefix used in the TXT output."""
+
+    if is_split_main_character(character_name, pattern):
+        return "❖\n◦ "
+
+    if is_main_character(character_name, file_name, pattern):
+        return "◦ "
+
+    return f"「他人」{character_name}：".replace("-", "")
+
+
+def get_changed_name_for_srt(character_name, file_name, pattern=None):
+    """Return the speaker prefix used in the SRT output."""
+
+    if is_main_character(character_name, file_name, pattern):
+        return ""
+
+    return f"【{character_name}】".replace("-", "")
+
+def generate_txt(input_csv, file_name, pattern=None):
 
     # Create three new lists
     new_txt_output, indexes, names = [list() for i in range(3)]
@@ -11,10 +57,10 @@ def generate_txt(input_csv):
     # Iterate through csv rows in format [index, time, line, character, episode]
     for row in range(input_csv.shape[0]):
 
-        indexes.append(input_csv[row][0]) 
+        indexes.append(input_csv[row][0])
         names.append(input_csv[row][3])
         line = str(input_csv[row][2])
-        changed_name = f"◦ 【{input_csv[row][3]}】".replace("-", "")
+        changed_name = get_changed_name_for_txt(input_csv[row][3], file_name, pattern)
 
         if row == 0:
             new_txt_output.extend([changed_name, line])
@@ -30,14 +76,15 @@ def generate_txt(input_csv):
                 new_txt_output.append(' ')
             else:
                 new_txt_output.extend(['\n', changed_name])
-            
+
             # Append the current line to the output
             new_txt_output.append(line)
 
     txt_output = ''.join(new_txt_output)
     return txt_output
 
-def generate_srt(input_csv):
+
+def generate_srt(input_csv, file_name, pattern=None):
 
     csv_indexes, names, current_line, output_srt = [list() for i in range(4)]
     srt_index = 1
@@ -47,7 +94,7 @@ def generate_srt(input_csv):
     for row in range(input_csv.shape[0]):
         csv_indexes.append(input_csv[row][0])
         names.append(input_csv[row][3])
-        changed_name = f"【{input_csv[row][3]}】".replace("-", "")
+        changed_name = get_changed_name_for_srt(input_csv[row][3], file_name, pattern)
 
         # For the first row, initialize the SRT index and time information
         if row == 0:
@@ -57,8 +104,8 @@ def generate_srt(input_csv):
 
         else:
             # Calculate the difference between the current and previous index
-            index_diff = csv_indexes[row] - csv_indexes[row-1]
-            same_group = names[row] == names[row-1] and index_diff == 1
+            index_diff = csv_indexes[row] - csv_indexes[row - 1]
+            same_group = names[row] == names[row - 1] and index_diff == 1
 
             # Handle continuous lines (same group)
             if same_group:
@@ -66,7 +113,7 @@ def generate_srt(input_csv):
             else:
                 # Write the previous line to the output
                 start_time = first_line_time.split(" --> ")[0]
-                end_time = input_csv[row-1][1].split(" --> ")[1]
+                end_time = input_csv[row - 1][1].split(" --> ")[1]
                 output_srt.append(f"{start_time} --> {end_time}")
                 output_srt.append(''.join(current_line))
 
@@ -85,11 +132,10 @@ def generate_srt(input_csv):
             output_srt.append(f"{start_time} --> {end_time}")
             output_srt.append(''.join(current_line))
 
-
     np_list = np.array(output_srt)
     n = 3
-    m = int(len(output_srt)/n)
-    reshaped_np_list = np_list.reshape(m,n)
+    m = int(len(output_srt) / n)
+    reshaped_np_list = np_list.reshape(m, n)
     new_output_srt = []
 
     # Iterate through the reshaped NumPy array
@@ -104,7 +150,7 @@ def generate_srt(input_csv):
     return srt_output
 
 
-def write_srt(file_name):
+def write_srt(file_name, pattern=None):
     # Open the csv file
     srt_folder_path = os.path.join("output-srt/", file_name)
     original_csv = pd.read_csv(f"input-csv/{file_name}.csv", header=None)
@@ -120,13 +166,13 @@ def write_srt(file_name):
         episode_input_csv = csv_array[episode_mask]
         episode_file_name = f"{file_name}{str(episode[-2:])}.srt"
 
-        # generate_txt(episode_file_name, episode_input_csv)
-        new_srt_output = generate_srt(episode_input_csv)
+        new_srt_output = generate_srt(episode_input_csv, file_name, pattern)
         with open(os.path.join(srt_folder_path, episode_file_name), "w") as f_srt:
             f_srt.write(new_srt_output)
         print(f"已生成整合字幕：{episode_file_name}")
 
-def write_txt(file_name):
+
+def write_txt(file_name, pattern=None):
     output_file_name = f"{file_name}.txt"
     original_csv = pd.read_csv(f"input-csv/{file_name}.csv", header=None)
     csv_array = np.array(original_csv)
@@ -137,13 +183,16 @@ def write_txt(file_name):
     for episode in episode_numbers:
         episode_mask = csv_array[:, 4] == episode
         episode_input_csv = csv_array[episode_mask]
-        new_txt_output = generate_txt(episode_input_csv)
+        new_txt_output = generate_txt(episode_input_csv, file_name, pattern)
         txt_output.extend([str(episode[-2:]), "\n", new_txt_output, "\n\n"])
+
+    if not os.path.exists("output-txt/"):
+        os.makedirs("output-txt/")
 
     with open(os.path.join("output-txt/", output_file_name), "w") as f_txt:
         f_txt.write("".join(txt_output))
     print(f"已生成台词本：{file_name}.txt")
-    
+
 
 	
 def update_artist_metadata(folder_path, artist_name):

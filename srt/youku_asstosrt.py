@@ -1,4 +1,4 @@
-import re
+import re, sys
 
 def ass_to_srt(ass_file, srt_file):
     with open(ass_file, 'r', encoding='utf-8') as f:
@@ -34,8 +34,11 @@ def ass_to_srt(ass_file, srt_file):
     print(f"Conversion completed: {ass_file} -> {srt_file}")
 
 # Example usage:
-for i in range(34, 35):
+drama = sys.argv[1]
+start_t = int(sys.argv[2])
+end_t = int(sys.argv[3])
+for i in range(start_t, end_t+1):
     epno = f"{i:02}"
-    ass_file = f"{'暗河传/'}{epno}.ass"
-    srt_file = f"{'暗河传/'}{epno}.srt"
+    ass_file = f"{drama}{'/'}{epno}.ass"
+    srt_file = f"{drama}{'/'}{epno}.srt"
     ass_to_srt(ass_file, srt_file)

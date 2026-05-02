@@ -74,11 +74,11 @@ def srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, 
             print(f"Extracted: {output_path}")
 
 # 调整句长
-start_time_adjust = -0.4
-end_time_adjust = 0.4
-episode_start = 35
-episode_end = 40
-drama = "水龙吟"
+start_time_adjust = -0.3
+end_time_adjust = 0.3
+episode_start = 11
+episode_end = 12
+drama = "白宗英"
 try:
     srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, end_time_adjust) 
 except:
