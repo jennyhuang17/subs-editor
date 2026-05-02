@@ -4,82 +4,72 @@ import os
 import re
 import sys
 from datetime import datetime, timedelta
+import subsgen as sg
+
 
 def sanitize_filename(filename):
-    """Sanitize the filename by removing or replacing unsafe characters."""
     return re.sub(r'[\\/*?:"<>|]', "_", filename)
 
+
 def adjust_time(time_obj, delta):
-    """Adjust a datetime.time object by a timedelta."""
-    datetime_obj = datetime.combine(datetime.today(), time_obj)
-    adjusted_datetime = datetime_obj + delta
-    return adjusted_datetime.time()
+    dt = datetime.combine(datetime.today(), time_obj)
+    return (dt + delta).time()
 
-def srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, end_time_adjust):
 
-    for episode in range(episode_start, episode_end+1):
+def srt_to_audio_segments(drama, episode_start, episode_end,
+                           start_time_adjust, end_time_adjust,
+                           artist_name="lnlychee"):
+    base_output_dir = "output-audio"
+
+    for episode in range(episode_start, episode_end + 1):
         n = f"{episode:02}"
-        file_name = drama+n
+        file_name = drama + n
 
-        srt_dir = "output-srt/" + file_name[:-2]
-        audio_dir = "input-audio"
-        output_dir = "output-audio"
-
-        audio_name = file_name
-        audio_format = "mp3"
-
-        srt_file = os.path.join(srt_dir, f"{file_name}.srt")
-        audio_file = os.path.join(audio_dir, f"{audio_name}.{audio_format}")
-        output_dir = os.path.join(output_dir, audio_name)
+        srt_file   = os.path.join("output-srt", drama, f"{file_name}.srt")
+        audio_file = os.path.join("input-audio", f"{file_name}.mp3")
+        episode_output_dir = os.path.join(base_output_dir, file_name)
 
         if not os.path.exists(audio_file):
+            print(f"跳过（音频不存在）: {audio_file}")
             continue
 
-        # Load the subtitles
         subs = pysrt.open(srt_file)
-
-        # Ensure the output directory exists
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        os.makedirs(episode_output_dir, exist_ok=True)
 
         for index, sub in enumerate(subs, start=1):
-            # Extract and adjust start and end times
             start_time = adjust_time(sub.start.to_time(), timedelta(seconds=start_time_adjust))
-            end_time = adjust_time(sub.end.to_time(), timedelta(seconds=end_time_adjust))
+            end_time   = adjust_time(sub.end.to_time(),   timedelta(seconds=end_time_adjust))
 
-            # Ensure start time is not negative
-            if datetime.combine(datetime.today(), start_time) < datetime.combine(datetime.today(), datetime.min.time()):
-                start_time = datetime.min.time()
+            # 确保起始时间不为负
+            zero = datetime.min.time()
+            if datetime.combine(datetime.today(), start_time) < datetime.combine(datetime.today(), zero):
+                start_time = zero
 
-            # Convert times to the format hh:mm:ss.xxx for FFmpeg
-            start_str = f"{start_time.hour:02}:{start_time.minute:02}:{start_time.second:02}.{int(start_time.microsecond / 1000):03}"
-            end_str = f"{end_time.hour:02}:{end_time.minute:02}:{end_time.second:02}.{int(end_time.microsecond / 1000):03}"
+            fmt = lambda t: f"{t.hour:02}:{t.minute:02}:{t.second:02}.{t.microsecond // 1000:03}"
+            output_path = os.path.join(
+                episode_output_dir,
+                f"{n}-{index:03} {sanitize_filename(sub.text)[:200]}.mp3"
+            )
 
-            # Use the subtitle text for the output file name, sanitized for file system compatibility
-            output_filename = sanitize_filename(sub.text)[:200]  # Limit filename length for practicality
-            output_path = os.path.join(output_dir, f"{file_name[-2:]}-{index:03} {output_filename}.{audio_format}")
+            subprocess.run(
+                ["ffmpeg", "-i", audio_file, "-ss", fmt(start_time), "-to", fmt(end_time), "-c", "copy", output_path],
+                check=True
+            )
+            print(f"截取: {output_path}")
 
-            # FFmpeg command to extract the audio segment
-            cmd = [
-                "ffmpeg",
-                "-i", audio_file,
-                "-ss", start_str,
-                "-to", end_str,
-                "-c", "copy",
-                output_path
-            ]
+        # 切完当集后直接打 artist 标签
+        sg.update_artist_metadata(episode_output_dir, artist_name)
+        print(f"已标记 artist='{artist_name}': {episode_output_dir}")
 
-            # Run the command
-            subprocess.run(cmd, check=True)
-            print(f"Extracted: {output_path}")
 
-# 调整句长
+# ── 配置区 ────────────────────────────────────────────────────────────────────
+drama            = "水龙吟"
+episode_start    = 35
+episode_end      = 40
 start_time_adjust = -0.4
-end_time_adjust = 0.4
-episode_start = 35
-episode_end = 40
-drama = "水龙吟"
-try:
-    srt_to_audio_segments(drama, episode_start, episode_end, start_time_adjust, end_time_adjust) 
-except:
-    pass
+end_time_adjust   =  0.4
+artist_name      = "lnlychee"
+# ─────────────────────────────────────────────────────────────────────────────
+
+srt_to_audio_segments(drama, episode_start, episode_end,
+                       start_time_adjust, end_time_adjust, artist_name)
