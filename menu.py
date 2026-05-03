@@ -50,8 +50,7 @@ def run_process():
     ep_start  = ask("开始集数：", "1")
     ep_end    = ask("结束集数：", ep_start)
 
-    from process import rename_files, convert_ass_files, generate_csv
-    # 自动加 srt/ 前缀（如果用户没有手动加）
+    from process import convert_ass_files, generate_csv
     folder = folder.rstrip("/\\")
     if not folder.startswith("srt/") and not folder.startswith("srt\\"):
         folder = os.path.join("srt", folder)
@@ -59,8 +58,12 @@ def run_process():
     ep_start, ep_end = int(ep_start), int(ep_end)
 
     print()
-    rename_files(folder, folder_name, ep_start, ep_end)
-    convert_ass_files(folder, folder_name, ep_start, ep_end)
+    ass_files = sorted(f for f in os.listdir(folder) if f.endswith('.ass'))
+    if ass_files:
+        print(f"发现 {len(ass_files)} 个 .ass 文件: {', '.join(ass_files)}")
+        if questionary.confirm("是否转换为 .srt？", default=False, style=STYLE).ask():
+            convert_ass_files(folder, folder_name, ep_start, ep_end)
+
     generate_csv(folder, folder_name, ep_start, ep_end)
 
 

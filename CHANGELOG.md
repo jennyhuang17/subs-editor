@@ -14,3 +14,9 @@
 
 **新增**
 - 启动时检测目录中的 `.ass` 文件，存在则提示 `是否转换为 .srt？[y/N]`，用户确认后才执行转换
+
+### `menu.py`
+
+**修改**
+- 移除 `rename_files` 的 import 和调用
+- 预处理字幕步骤改为：检测 `.ass` 文件 → 用 `questionary.confirm` 询问是否转换 → 确认后调用 `convert_ass_files` → 调用 `generate_csv`
