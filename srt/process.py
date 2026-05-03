@@ -2,8 +2,9 @@
 用法: python process.py <文件夹> <开始集数> <结束集数>
 
 流程:
-  1. 把文件夹内的 .ass 或 .srt 文件按文件名排序，重命名为 <文件夹名><集数>.ass/.srt
-  2. 如果有 .ass 文件，转换成 .srt
+  1. 若目录中存在 .ass 文件，询问是否转换为 .srt
+     转换时按排序顺序与集数对应，输出 <文件夹名><集数>.srt
+  2. 按集数范围查找精确命名的 <文件夹名><集数>.srt，找不到则报错退出
   3. 生成台词 CSV
 """
 
@@ -13,59 +14,57 @@ import re
 import sys
 
 
-# ── 1. 重命名 ────────────────────────────────────────────────────────────────
+# ── ASS → SRT 转换 ────────────────────────────────────────────────────────────
 
-def rename_files(directory, folder_name, ep_start, ep_end):
-    episode_range = range(ep_start, ep_end + 1)
-
-    for ext in ('.ass', '.srt'):
-        files = sorted(f for f in os.listdir(directory) if f.endswith(ext))
-        if not files:
-            continue
-
-        if len(files) != len(episode_range):
-            print(f"警告: 找到 {len(files)} 个 {ext} 文件，但集数范围是 {len(episode_range)} 集，请确认")
-
-        for filename, epno in zip(files, episode_range):
-            new_name = f"{folder_name}{epno:02d}{ext}"
-            if filename == new_name:
-                continue
-            src = os.path.join(directory, filename)
-            dst = os.path.join(directory, new_name)
-            os.rename(src, dst)
-            print(f"重命名: {filename} → {new_name}")
-
-
-# ── 2. ASS → SRT 转换 ────────────────────────────────────────────────────────
-
+# ASS Dialogue 格式: Dialogue: Layer,Start,End,Style,Actor,MarginL,MarginR,MarginV,Effect,Text
 DIALOGUE_RE = re.compile(
-    r'Dialogue: \d,(?P<start>\d+:\d+:\d+\.\d+),(?P<end>\d+:\d+:\d+\.\d+),'
-    r'[^,]*,,[^,]*,[^,]*,[^,]*,,(?P<text>[^\n]*)'
+    r'Dialogue: \d,'
+    r'(?P<start>\d+:\d{2}:\d{2}\.\d{2}),'
+    r'(?P<end>\d+:\d{2}:\d{2}\.\d{2}),'
+    r'[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,'
+    r'(?P<text>[^\n]*)'
 )
+ASS_OVERRIDE_RE = re.compile(r'\{[^}]*\}')
+
 
 def ass_to_srt(ass_path, srt_path):
     with open(ass_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    with open(srt_path, 'w', encoding='utf-8') as f:
-        for i, m in enumerate(DIALOGUE_RE.finditer(content), 1):
-            start = m.group('start').replace('.', ',')
-            end   = m.group('end').replace('.', ',')
-            text  = m.group('text').strip()
-            f.write(f"{i}\n0{start}0 --> 0{end}0\n{text}\n\n")
+    matches = list(DIALOGUE_RE.finditer(content))
+    if not matches:
+        print(f"警告: {ass_path} 中未匹配到对话行，跳过转换")
+        return False
 
-    print(f"转换: {ass_path} → {srt_path}")
+    with open(srt_path, 'w', encoding='utf-8') as f:
+        for i, m in enumerate(matches, 1):
+            # ASS 时间格式 H:MM:SS.cc → SRT 格式 HH:MM:SS,mmm（补零对齐）
+            start = '0' + m.group('start').replace('.', ',') + '0'
+            end   = '0' + m.group('end').replace('.', ',') + '0'
+            text  = ASS_OVERRIDE_RE.sub('', m.group('text')).strip()
+            f.write(f"{i}\n{start} --> {end}\n{text}\n\n")
+
+    print(f"转换: {os.path.basename(ass_path)} → {os.path.basename(srt_path)}")
+    return True
 
 
 def convert_ass_files(directory, folder_name, ep_start, ep_end):
-    for epno in range(ep_start, ep_end + 1):
-        ass_path = os.path.join(directory, f"{folder_name}{epno:02d}.ass")
-        srt_path = os.path.join(directory, f"{folder_name}{epno:02d}.srt")
-        if os.path.exists(ass_path):
-            ass_to_srt(ass_path, srt_path)
+    ass_files = sorted(f for f in os.listdir(directory) if f.endswith('.ass'))
+    episode_range = list(range(ep_start, ep_end + 1))
+
+    if len(ass_files) != len(episode_range):
+        print(f"警告: 找到 {len(ass_files)} 个 .ass 文件，但集数范围是 {len(episode_range)} 集")
+        print(f"  文件: {', '.join(ass_files)}")
+
+    for ass_file, epno in zip(ass_files, episode_range):
+        srt_name = f"{folder_name}{epno:02d}.srt"
+        ass_to_srt(
+            os.path.join(directory, ass_file),
+            os.path.join(directory, srt_name),
+        )
 
 
-# ── 3. 生成 CSV ──────────────────────────────────────────────────────────────
+# ── 生成 CSV ──────────────────────────────────────────────────────────────────
 
 SRT_BLOCK_RE = re.compile(
     r'(\d+)\n'
@@ -73,6 +72,7 @@ SRT_BLOCK_RE = re.compile(
     r'(.*?)(?=\n{2,}|\Z)',
     re.DOTALL
 )
+
 
 def read_srt(file_path, episode_number):
     with open(file_path, 'r', encoding='utf-8') as f:
@@ -90,16 +90,30 @@ def read_srt(file_path, episode_number):
     return rows
 
 
+def find_srt(directory, epno):
+    """找文件名中包含精确集数（前后均非数字）的 .srt 文件。"""
+    ep_re = re.compile(rf'(?<!\d){epno}(?!\d)')
+    return sorted(f for f in os.listdir(directory) if f.endswith('.srt') and ep_re.search(f))
+
+
 def generate_csv(directory, folder_name, ep_start, ep_end):
     all_rows = []
-    episode_re = re.compile(rf'{re.escape(folder_name)}(\d{{2}})\.srt$')
+    missing = []
 
-    filenames = sorted(f for f in os.listdir(directory) if episode_re.search(f))
-    for filename in filenames:
-        epno = int(episode_re.search(filename).group(1))
-        if ep_start <= epno <= ep_end:
-            print(f"读取: {filename}")
-            all_rows.extend(read_srt(os.path.join(directory, filename), epno))
+    for epno in range(ep_start, ep_end + 1):
+        candidates = find_srt(directory, epno)
+        if not candidates:
+            missing.append(str(epno))
+            continue
+        if len(candidates) > 1:
+            print(f"警告: 第 {epno} 集匹配到多个文件: {', '.join(candidates)}，使用 {candidates[0]}")
+        srt_name = candidates[0]
+        print(f"读取: {srt_name}")
+        all_rows.extend(read_srt(os.path.join(directory, srt_name), epno))
+
+    if missing:
+        print(f"错误: 以下集数未找到对应的 SRT 文件: {', '.join(missing)}")
+        sys.exit(1)
 
     if ep_start == ep_end:
         output_csv = os.path.join(directory, f"{folder_name}{ep_start:02d}.csv")
@@ -121,11 +135,18 @@ if __name__ == '__main__':
         print("用法: python process.py <文件夹> <开始集数> <结束集数>")
         sys.exit(1)
 
-    directory = sys.argv[1].rstrip('/\\')
-    ep_start  = int(sys.argv[2])
-    ep_end    = int(sys.argv[3])
-    folder_name = os.path.basename(directory)  # 取最后一层目录名
+    directory   = sys.argv[1].rstrip('/\\')
+    ep_start    = int(sys.argv[2])
+    ep_end      = int(sys.argv[3])
+    folder_name = os.path.basename(directory)
 
-    rename_files(directory, folder_name, ep_start, ep_end)
-    convert_ass_files(directory, folder_name, ep_start, ep_end)
+    # 步骤 1：检测 .ass 文件，按需转换
+    ass_files = sorted(f for f in os.listdir(directory) if f.endswith('.ass'))
+    if ass_files:
+        print(f"发现 {len(ass_files)} 个 .ass 文件: {', '.join(ass_files)}")
+        answer = input("是否转换为 .srt？[y/N] ").strip().lower()
+        if answer == 'y':
+            convert_ass_files(directory, folder_name, ep_start, ep_end)
+
+    # 步骤 2+3：精确查找 SRT 并生成 CSV
     generate_csv(directory, folder_name, ep_start, ep_end)
