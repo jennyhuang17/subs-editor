@@ -118,6 +118,30 @@ python subs_generator.py 乐嫣        # 读取 input-csv/乐嫣.csv
 python subs_generator.py 山河枕01-10  # 读取 input-csv/山河枕01-10.csv
 ```
 
+### `web_app.py` — 本地网页生成台词本和字幕
+
+轻量 Web 入口，可从本地任意位置上传 CSV，不要求放在 `input-csv/`。
+
+```bash
+python web_app.py
+```
+
+打开：
+
+```text
+http://127.0.0.1:7860/
+```
+
+**支持**
+- 预览 CSV，默认识别 `编号 / 时间戳 / 台词 / 角色 / 集数`
+- 按集数筛选，如 `11-15`、`EP11,EP12`
+- 默认只处理角色非空行
+- 设置主角 marker，如 `q e`
+- 在高级设置中调整台词本前缀、其他角色模板、连续台词连接符、`n/9` 切换分隔符、是否清理每句台词内部空格
+- SRT 固定按同角色连续台词合并，连续台词用空格连接
+
+详细说明见 [README-web.md](README-web.md)。
+
 ---
 
 ### `audio_cutter.py` — 截取音频并标记 artist
