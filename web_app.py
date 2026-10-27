@@ -110,7 +110,7 @@ def _parse_markers(value: str) -> set[str]:
 
 def _safe_name(value: str) -> str:
     value = (value or "").strip()
-    value = re.sub(r'[\\/:*?"<>|]+', "-", value)
+    value = re.sub(r'[\\/:*?"<>|]+', "◦", value)
     value = value.strip(" .")
     return value or "subs-output"
 
@@ -348,7 +348,7 @@ def create_demo():
 
         with gr.Accordion("高级设置", open=False):
             with gr.Row():
-                txt_main_prefix = gr.Textbox(label="台词本：主角前缀", value="- ")
+                txt_main_prefix = gr.Textbox(label="台词本：主角前缀", value="◦ ")
                 txt_other_prefix = gr.Textbox(label="台词本：其他角色前缀模板", value="【{role}】")
             with gr.Row():
                 txt_line_separator = gr.Textbox(label="台词本：连续台词连接符", value=" ")

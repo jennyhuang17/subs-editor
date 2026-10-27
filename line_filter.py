@@ -14,11 +14,12 @@ def extract_lines(input_file, pattern, output_file):
     with open(output_file, 'w', encoding='utf-8') as file:
         file.writelines(extracted_lines)
 
-# 示例使用
-input_file = 'output-txt/钢铁森林.txt'
-# output_file = 'output-txt/钢铁森林-女主.txt'
-# pattern = r'【[qwert]】'
-output_file = 'output-txt/钢铁森林-男主.txt'
-pattern = r'【[asdfg]】'
-print(f"✅已提取台词本：{output_file}")
-extract_lines(input_file, pattern, output_file)
+input_file = 'output-txt/百花杀.txt'
+extract_configs = {
+    '女': (r'【[qwert]】', 'output-txt/百花杀（女）.txt'),
+    '男': (r'【[asdfg]】', 'output-txt/百花杀（男）.txt'),
+}
+
+for name, (pattern, output_file) in extract_configs.items():
+    extract_lines(input_file, pattern, output_file)
+    print(f"✅已提取{name}台词本：{output_file}")

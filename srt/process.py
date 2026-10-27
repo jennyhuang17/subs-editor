@@ -48,16 +48,41 @@ def ass_to_srt(ass_path, srt_path):
     return True
 
 
-def convert_ass_files(directory, folder_name, ep_start, ep_end):
-    ass_files = sorted(f for f in os.listdir(directory) if f.endswith('.ass'))
-    episode_range = list(range(ep_start, ep_end + 1))
+def convert_ass_files(directory, ep_start, ep_end):
+    """
+    只转换指定集数范围内的纯数字 .ass 文件。
 
-    if len(ass_files) != len(episode_range):
-        print(f"警告: 找到 {len(ass_files)} 个 .ass 文件，但集数范围是 {len(episode_range)} 集")
-        print(f"  文件: {', '.join(ass_files)}")
+    支持：
+    1.ass
+    01.ass
+    10.ass
 
-    for ass_file, epno in zip(ass_files, episode_range):
-        srt_name = f"{folder_name}{epno:02d}.srt"
+    转换后保留同样的纯数字名字：
+    1.ass  -> 1.srt
+    01.ass -> 01.srt
+    10.ass -> 10.srt
+    """
+    ass_name_re = re.compile(r'^(\d+)\.ass$')
+
+    ass_map = {}
+
+    for filename in os.listdir(directory):
+        match = ass_name_re.match(filename)
+        if not match:
+            continue
+
+        epno = int(match.group(1))
+        ass_map[epno] = filename
+
+    for epno in range(ep_start, ep_end + 1):
+        ass_file = ass_map.get(epno)
+
+        if not ass_file:
+            print(f"警告: 未找到第 {epno} 集对应的 .ass 文件，跳过转换")
+            continue
+
+        srt_name = os.path.splitext(ass_file)[0] + '.srt'
+
         ass_to_srt(
             os.path.join(directory, ass_file),
             os.path.join(directory, srt_name),
@@ -91,9 +116,26 @@ def read_srt(file_path, episode_number):
 
 
 def find_srt(directory, epno):
-    """找文件名中包含精确集数（前后均非数字）的 .srt 文件。"""
-    ep_re = re.compile(rf'(?<!\d){epno}(?!\d)')
-    return sorted(f for f in os.listdir(directory) if f.endswith('.srt') and ep_re.search(f))
+    """
+    查找纯数字命名的 .srt 文件。
+
+    支持：
+    1.srt
+    01.srt
+    10.srt
+    """
+    srt_name_re = re.compile(r'^(\d+)\.srt$')
+    matches = []
+
+    for filename in os.listdir(directory):
+        match = srt_name_re.match(filename)
+        if not match:
+            continue
+
+        if int(match.group(1)) == epno:
+            matches.append(filename)
+
+    return sorted(matches)
 
 
 def generate_csv(directory, folder_name, ep_start, ep_end):
@@ -140,13 +182,10 @@ if __name__ == '__main__':
     ep_end      = int(sys.argv[3])
     folder_name = os.path.basename(directory)
 
-    # 步骤 1：检测 .ass 文件，按需转换
-    ass_files = sorted(f for f in os.listdir(directory) if f.endswith('.ass'))
-    if ass_files:
-        print(f"发现 {len(ass_files)} 个 .ass 文件: {', '.join(ass_files)}")
-        answer = input("是否转换为 .srt？[y/N] ").strip().lower()
-        if answer == 'y':
-            convert_ass_files(directory, folder_name, ep_start, ep_end)
-
+    # 步骤 1：按需从 ASS 转换为 SRT
+    answer = input("是否从 .ass 转换为 .srt？[y/N] ").strip().lower()
+    if answer == 'y':
+        convert_ass_files(directory, ep_start, ep_end)
+        
     # 步骤 2+3：精确查找 SRT 并生成 CSV
     generate_csv(directory, folder_name, ep_start, ep_end)

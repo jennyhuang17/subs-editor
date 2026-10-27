@@ -13,7 +13,7 @@ def is_split_main_character(character_name, pattern=None):
 
     return (
         len(character_name) == 2
-        and character_name.startswith("n")
+        and character_name.startswith(("n", "9"))
         and character_name[1] in set(str(pattern))
     )
 
@@ -33,12 +33,12 @@ def get_changed_name_for_txt(character_name, file_name, pattern=None):
     """Return the speaker prefix used in the TXT output."""
 
     if is_split_main_character(character_name, pattern):
-        return "❖\n◦ "
+        return "\n❖ ❖ ❖\n▸ "
 
     if is_main_character(character_name, file_name, pattern):
-        return "◦ "
+        return "▸ "
 
-    return f"「他人」{character_name}：".replace("-", "")
+    return f"【{character_name}】".replace("-", "")
 
 
 def get_changed_name_for_srt(character_name, file_name, pattern=None):

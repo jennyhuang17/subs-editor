@@ -21,6 +21,37 @@ http://127.0.0.1:7860/
 
 > 如果 7860 端口被占用，先停止旧的 `python web_app.py` 进程后再启动。
 
+如果看到类似报错：
+
+```text
+OSError: Cannot find empty port in range: 7860-7860
+```
+
+说明 `7860` 端口仍被占用。可先查看占用进程：
+
+```bash
+lsof -nP -iTCP:7860 -sTCP:LISTEN
+```
+
+输出里找到 `PID` 后停止它：
+
+```bash
+kill <PID>
+```
+
+再重新运行：
+
+```bash
+python web_app.py
+```
+
+下面两行只是提示，不是导致启动失败的错误：
+
+```text
+IMPORTANT: You are using gradio version ...
+Matplotlib is building the font cache; this may take a moment.
+```
+
 ---
 
 ## 输入 CSV
